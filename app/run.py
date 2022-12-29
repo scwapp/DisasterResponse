@@ -1,32 +1,34 @@
 import json
 import plotly
 import pandas as pd
+import re
 
-from nltk.stem import WordNetLemmatizer
+from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize
+from nltk.stem import WordNetLemmatizer
 
 from flask import Flask
 from flask import render_template, request, jsonify
-from plotly.graph_objs import Bar
+from plotly.graph_objs import Bar, Heatmap
 import joblib
 from sqlalchemy import create_engine
 
-# import nltk
-
-# Download the WordNet Corpus
-# nltk.download('wordnet')
 
 app = Flask(__name__)
 
 def tokenize(text):
+    url_regex = 'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
+    detected_urls = re.findall(url_regex, text)
+    for url in detected_urls:
+        text = text.replace(url, "urlplaceholder")
     tokens = word_tokenize(text)
     lemmatizer = WordNetLemmatizer()
 
     clean_tokens = []
-    for tok in tokens:
-        clean_tok = lemmatizer.lemmatize(tok).lower().strip()
-        clean_tokens.append(clean_tok)
-
+    for tok in tokens: 
+        if tok not in stopwords.words("english"): #do not include stopwords
+            clean_tok = lemmatizer.lemmatize(tok).lower().strip()
+            clean_tokens.append(clean_tok)
     return clean_tokens
 
 # load data
@@ -35,6 +37,10 @@ df = pd.read_sql_table('categorized_messages', engine)
 
 # load model
 model = joblib.load("../models/classifier.pkl")#joblib.load("models/classifier.pkl") #
+
+Y = df.drop(['message', 'id', 'original','genre'],axis=1)
+category_names = list(Y.columns)
+
 
 
 
@@ -47,16 +53,23 @@ def index():
     # TODO: Below is an example - modify to extract data for your own visuals
     genre_counts = df.groupby('genre').count()['message']
     genre_names = list(genre_counts.index)
-
+    #prepare data for categories bar plot
     Y = df.drop(['message', 'id', 'original','genre'],axis=1)
     category_names = list(Y.columns)
     category_counts = []
-    for cat in category_names:
-        category_counts.append(Y[cat].sum())
+    for cat_name in category_names:
+        category_counts.append(Y[cat_name].sum())
     cat_s = pd.Series(index = pd.Index(category_names, name = 'category'), data = category_counts)
     cat_s = cat_s.sort_values(ascending = False)
     cat_s.index = cat_s.index.str.replace('_', ' ')
-
+    #prepare data for pairing categories heatmap
+    df_groupcounts = pd.DataFrame(columns = category_names, index = category_names)
+    for cat_name in category_names:
+        Y_cat = Y[Y[cat_name] == 1]
+        df_groupcounts[cat_name] = Y_cat.sum() / Y_cat.shape[0]
+        df_groupcounts.loc[cat_name,cat_name] = 0
+    df_groupcounts.index = df_groupcounts.index.str.replace('_', ' ')
+    df_groupcounts.columns = df_groupcounts.columns.str.replace('_', ' ')
     
     # create visuals
     # TODO: Below is an example - modify to create your own visuals
@@ -96,9 +109,35 @@ def index():
                     'title': "Genre"
                 }
             }
+        },
+        {
+            'data': [
+                Heatmap(
+                    z=df_groupcounts.values,
+                    x=df_groupcounts.columns,
+                    y =df_groupcounts.index
+                )
+            ],
+
+            'layout': {
+                'width': 1100,
+                'height': 700,
+                'title': 'Probability of X-Category to be with Y-Category',
+                'yaxis': {
+                    'title': "Y-Category",
+                    'tickangle': -45
+                },
+                'xaxis': {
+                    'title': "X-Category",
+                    'tickangle': 20
+                },
+                'colorbar': {
+                    'title': "Count"
+                }
+            }
         }
     ]
-    
+
     # encode plotly graphs in JSON
     ids = ["graph-{}".format(i) for i, _ in enumerate(graphs)]
     graphJSON = json.dumps(graphs, cls=plotly.utils.PlotlyJSONEncoder)
