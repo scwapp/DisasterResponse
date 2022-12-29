@@ -17,6 +17,14 @@ from sqlalchemy import create_engine
 app = Flask(__name__)
 
 def tokenize(text):
+    ''' Tokenizes text by replacing urls with placehoders, tokenizing, normalizing and lemmatizing text,
+    and removing stopwords.
+    Inputs:
+        - text: input text (list of strings)
+    Outputs:
+        - clean_tokens: tokenized text (list of strings)
+
+    '''
     url_regex = 'http[s]?://(?:[a-zA-Z]|[0-9]|[$-_@.&+]|[!*\(\),]|(?:%[0-9a-fA-F][0-9a-fA-F]))+'
     detected_urls = re.findall(url_regex, text)
     for url in detected_urls:
@@ -50,29 +58,34 @@ category_names = list(Y.columns)
 def index():
     
     # extract data needed for visuals
-    # TODO: Below is an example - modify to extract data for your own visuals
+    
+    #prepare data for genres bar plot
     genre_counts = df.groupby('genre').count()['message']
     genre_names = list(genre_counts.index)
+
     #prepare data for categories bar plot
-    Y = df.drop(['message', 'id', 'original','genre'],axis=1)
+    Y = df.drop(['message', 'id', 'original','genre'],axis=1) #select category subset
     category_names = list(Y.columns)
     category_counts = []
     for cat_name in category_names:
         category_counts.append(Y[cat_name].sum())
+    #save category counts into a pandas series
     cat_s = pd.Series(index = pd.Index(category_names, name = 'category'), data = category_counts)
-    cat_s = cat_s.sort_values(ascending = False)
-    cat_s.index = cat_s.index.str.replace('_', ' ')
+    cat_s = cat_s.sort_values(ascending = False) #order series descending
+    cat_s.index = cat_s.index.str.replace('_', ' ') #replace _ with white space
+
     #prepare data for pairing categories heatmap
-    df_groupcounts = pd.DataFrame(columns = category_names, index = category_names)
-    for cat_name in category_names:
-        Y_cat = Y[Y[cat_name] == 1]
-        df_groupcounts[cat_name] = Y_cat.sum() / Y_cat.shape[0]
-        df_groupcounts.loc[cat_name,cat_name] = 0
+    df_groupcounts = pd.DataFrame(columns = category_names, index = category_names) #instantiate empty dataframe
+    for cat_name in category_names: #iterate over categories
+        Y_cat = Y[Y[cat_name] == 1] #select subset labelled with category
+        #count other categories and normalize it with categorie's length
+        df_groupcounts[cat_name] = Y_cat.sum() / Y_cat.shape[0] 
+        df_groupcounts.loc[cat_name,cat_name] = 0 #category can not be paired with self --> set to 0
+    #replace _ with white space
     df_groupcounts.index = df_groupcounts.index.str.replace('_', ' ')
     df_groupcounts.columns = df_groupcounts.columns.str.replace('_', ' ')
     
     # create visuals
-    # TODO: Below is an example - modify to create your own visuals
     graphs = [
         {
             'data': [

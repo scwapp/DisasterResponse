@@ -5,8 +5,14 @@ import os
 
 
 def load_data(messages_filepath, categories_filepath):
-    cwd = os.getcwd()
-    print(cwd)
+    '''Loads data from the essages and categories datasets, merges the datasets and returns the
+    merged dataframe.
+    Inputs:
+        - `messages_filepath`: messages dataset file path
+        - `categories_filepath`: categories dataset file path
+    Outputs:
+        - df: merged dataframe
+    '''
     messages = pd.read_csv(messages_filepath) # load messages dataset
     categories_singlecol = pd.read_csv(categories_filepath) # load categories dataset
     df = messages.merge(categories_singlecol, on ='id') # merge datasets
@@ -14,6 +20,13 @@ def load_data(messages_filepath, categories_filepath):
 
 
 def clean_data(df):
+    ''' Clean dataframe `df` by splitting it into categories and labelling them,
+    drop duplicate/incorrect rows and and empty columns.
+    Inputs: 
+        - df: input dataframe
+    Outputs:
+        - df: clean dataframe
+    '''
     # create a dataframe of the 36 individual category columns
     categories = df['categories'].str.split(';', expand = True) 
     # select the first row of the categories dataframe
@@ -55,9 +68,15 @@ def clean_data(df):
 
 
 def save_data(df, database_filename):
+    '''Save dataframe in an sqlite database.
+    Inputs:
+        - df: processed dataframe
+        - database_filename: sqlite database file path
+    Outputs:
+    '''
     engine = create_engine(f'sqlite:///{database_filename}')
     df.to_sql('categorized_messages', engine, index=False, if_exists = 'replace')
-    pass  
+      
 
 
 def main():
