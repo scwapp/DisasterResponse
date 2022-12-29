@@ -8,9 +8,13 @@ from nltk.tokenize import word_tokenize
 from flask import Flask
 from flask import render_template, request, jsonify
 from plotly.graph_objs import Bar
-from sklearn.externals import joblib
+import joblib
 from sqlalchemy import create_engine
 
+# import nltk
+
+# Download the WordNet Corpus
+# nltk.download('wordnet')
 
 app = Flask(__name__)
 
@@ -26,11 +30,12 @@ def tokenize(text):
     return clean_tokens
 
 # load data
-engine = create_engine('sqlite:///../data/YourDatabaseName.db')
-df = pd.read_sql_table('YourTableName', engine)
+engine = create_engine('sqlite:///../data/DisasterResponse.db')#create_engine('sqlite:///data/DisasterResponse.db') #
+df = pd.read_sql_table('categorized_messages', engine)
 
 # load model
-model = joblib.load("../models/your_model_name.pkl")
+model = joblib.load("../models/classifier.pkl")#joblib.load("models/classifier.pkl") #
+
 
 
 # index webpage displays cool visuals and receives user input text for model
@@ -42,10 +47,38 @@ def index():
     # TODO: Below is an example - modify to extract data for your own visuals
     genre_counts = df.groupby('genre').count()['message']
     genre_names = list(genre_counts.index)
+
+    Y = df.drop(['message', 'id', 'original','genre'],axis=1)
+    category_names = list(Y.columns)
+    category_counts = []
+    for cat in category_names:
+        category_counts.append(Y[cat].sum())
+    cat_s = pd.Series(index = pd.Index(category_names, name = 'category'), data = category_counts)
+    cat_s = cat_s.sort_values(ascending = False)
+    cat_s.index = cat_s.index.str.replace('_', ' ')
+
     
     # create visuals
     # TODO: Below is an example - modify to create your own visuals
     graphs = [
+        {
+            'data': [
+                Bar(
+                    x=cat_s.index,
+                    y=cat_s.values
+                )
+            ],
+
+            'layout': {
+                'title': 'Distribution of Message Categories',
+                'yaxis': {
+                    'title': "Count"
+                },
+                'xaxis': {
+                    'title': "Category"
+                }
+            }
+        },
         {
             'data': [
                 Bar(
